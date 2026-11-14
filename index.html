@@ -306,6 +306,13 @@ footer{position:relative;z-index:4;background:var(--deep);padding:70px var(--gx)
 @media (min-width:901px) and (max-width:1180px){
   .pillars span{letter-spacing:.12em}
 }
+@media (max-width:900px),(hover:none){
+  .foil{animation:none}
+  .hero .giant .foil{animation:in 1.4s .15s cubic-bezier(.2,.8,.2,1) both}
+  .dancer-word{animation:leap 1.5s .9s cubic-bezier(.25,1.4,.4,1) both;filter:none}
+  .nav.solid,.buybar{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(14,29,30,.96)}
+  .leaf-wm{display:none}
+}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -569,14 +576,21 @@ addEventListener('scroll', ingStep, { passive: true }); addEventListener('resize
 <script>
 /* ====== Caja 3D del producto (se mueve con el scroll) ====== */
 (async () => {
+  window.fail3D = () => { document.documentElement.classList.remove('gl'); const c = document.getElementById('stage3d'); if (c) c.style.display = 'none'; window.__3dFailed = true; };
+  try {
   const canvas = document.getElementById('stage3d');
   const STILL = /[?&]still/.test(location.search);
   if (!window.THREE) return canvas.remove();
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: STILL }); }
   catch (e) { return canvas.remove(); }
-  document.documentElement.classList.add('gl');
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  // celulares: menos resolución y texturas más livianas (Safari en iPhone limita la memoria de dibujo)
+  const MOB = innerWidth <= 900 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const Q = MOB ? .5 : 1;
+  canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); fail3D(); });
+  if (/[?&]fail3d/.test(location.search)) throw new Error('prueba de respaldo');
+  let shown = false;
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, MOB ? 1.5 : 2));
   renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -602,7 +616,7 @@ addEventListener('scroll', ingStep, { passive: true }); addEventListener('resize
   const tint = (() => { const c = document.createElement('canvas'); c.width = logo.naturalWidth || 10; c.height = logo.naturalHeight || 10; const g = c.getContext('2d'); g.drawImage(logo, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = 'rgb(0,70,170)'; g.fillRect(0, 0, c.width, c.height); return c; })();
   let seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   function face(W, H, paint) {
-    const mk = mode => { const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); seed = 3;
+    const mk = mode => { const c = document.createElement('canvas'); c.width = Math.round(W * Q); c.height = Math.round(H * Q); const g = c.getContext('2d'); if (!g) throw new Error('sin memoria para texturas'); g.scale(Q, Q); seed = 3;
       const M = mode === 'm';
       const goldFill = (x0, y0, x1, y1) => { if (M) return 'rgb(0,70,170)'; const gr = g.createLinearGradient(x0, y0, x1, y1); [[0, '#a17c36'], [.3, '#ecd59c'], [.45, '#fff2cc'], [.62, '#c9a356'], [.85, '#8e6b2d'], [1, '#d9bb72']].forEach(([o, col]) => gr.addColorStop(o, col)); return gr; };
       // fondo
@@ -617,8 +631,8 @@ addEventListener('scroll', ingStep, { passive: true }); addEventListener('resize
         dotted: (x0, x1, y) => { g.fillStyle = goldFill(x0, y, x1, y); for (let x = x0; x < x1; x += 12) { g.beginPath(); g.arc(x, y, 2, 0, 7); g.fill(); } },
         sprig: (x, y, s, rot, a) => { if (M) return; g.save(); g.translate(x, y); g.rotate(rot); g.scale(s, s); g.globalAlpha = a; g.strokeStyle = '#d8b86c'; g.lineWidth = 1.4 / s;
           const p = new Path2D('M100 410C98 320 104 220 96 120 92 70 100 30 108 8M99 330c-40-6-72-34-80-74 38 2 70 26 80 74zM101 270c38-10 66-40 70-80-36 6-64 34-70 80zM98 205c-34-12-56-42-58-78 32 8 54 36 58 78zM98 140c26-14 42-40 42-70-28 8-42 32-42 70z'); g.stroke(p); g.restore(); } };
-      g.textBaseline = 'alphabetic'; paint(T); const t = new THREE.CanvasTexture(c); if (!M) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
-    return new THREE.MeshStandardMaterial({ map: mk('c'), metalnessMap: mk('m'), roughnessMap: mk('m'), metalness: 1, roughness: 1 });
+      g.textBaseline = 'alphabetic'; paint(T); const t = new THREE.CanvasTexture(c); if (!M) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MOB ? 2 : 8; return t; };
+    const mm = mk('m'); return new THREE.MeshStandardMaterial({ map: mk('c'), metalnessMap: mm, roughnessMap: mm, metalness: 1, roughness: 1 });
   }
   const icon = (T, kind, cx, cy, r) => { const g = T.g; g.strokeStyle = T.gold(cx - r, cy - r, cx + r, cy + r); g.lineWidth = 3; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke(); g.lineWidth = 3.4; g.lineCap = 'round'; g.lineJoin = 'round'; g.save(); g.translate(cx, cy); const s = r / 50; g.scale(s, s);
     g.beginPath();
@@ -801,11 +815,12 @@ addEventListener('scroll', ingStep, { passive: true }); addEventListener('resize
         m.rotation.set(0, 0, (Math.PI * (.92 - i * .168) - Math.PI / 2) * .45 * k + Math.sin(t + i) * .03 * f);
       });
       renderer.render(scene, camera);
+      if (!shown && !window.__3dFailed) { shown = true; document.documentElement.classList.add('gl'); }
     }
     if (!STILL) requestAnimationFrame(frame); else window.__still = true;
   }
   requestAnimationFrame(frame);
-})();
+} catch (err) { console.warn('3D desactivado:', err); fail3D(); } })();
 </script>
 </body>
 </html>
